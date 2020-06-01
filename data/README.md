@@ -1,6 +1,8 @@
 # Data
 
-There are different data sets included.
+There are different data sets included. Note that data is higly compressible, therefore, they are zipped and needed to be unzipped before use.
+
+
 ## Sources
 ### Demand Data
 https://www.nationalgrideso.com/balancing-data/data-finder-and-explorer
@@ -30,4 +32,13 @@ Test:
 	From and including: Sunday, 1 October 2017
 	To and including: Monday, 9 October 2017
 	9 days
+
+
+## Data Set 2 - data2
+Train and validation sets are the same as in data set 1. Test set is given for 2018.
+
+Test:
+        From and including: Monday, 2 July 2018
+        To and including: Tuesday, 10 July 2018
+        9 days
 
