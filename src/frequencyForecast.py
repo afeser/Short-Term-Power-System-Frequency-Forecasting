@@ -587,9 +587,15 @@ class FrequencyForecaster:
         if self.nn is None:
             self._buildModel()
 
+        def fit_func(epochlar):
+            time_start = time.time()
+            history_lstm2 = self.nn.fit(self.Xtrain, self.Ytrain, batch_size=self.batchSize, epochs=epochlar, shuffle=False, verbose=1, callbacks=[self.tensorboard_callback], validation_data=(self.Xtest, self.Ytest))
+            time_end = time.time()
+
+            return (time_end - time_start)
 
         if trainMode == 'directTrain':
-            pass
+            return fit_func(epochlar=epoch)
         elif trainMode == 'predictTrain':
             listStart = 250
             listEnd   = 450
@@ -601,7 +607,7 @@ class FrequencyForecaster:
                 self.plot(0, self.YtestPlot[listStart:listEnd], self.predict(self.Xtest[listStart:listEnd]), customTag='validation')
 
             for i in range(len(self.errors['trainMAE']), epoch+len(self.errors['trainMAE'])):
-                history_lstm2 = self.nn.fit(self.Xtrain, self.Ytrain, batch_size=self.batchSize, epochs=1, shuffle=False, verbose=1, callbacks=[self.tensorboard_callback], validation_data=(self.Xtest, self.Ytest))
+                total_time_spent = fit_func(epochlar=1)
 
                 # Test on train set and plot
                 self.plot(i+1, self.YtrainPlot[listStart:listEnd], self.predict(self.Xtrain[listStart:listEnd]), customTag='train')
@@ -675,7 +681,7 @@ class FrequencyForecaster:
                 self.errors['persistenceRealTestMAPE'].append(persistenceRealTestMAPE)
 
 
-
+        return total_time_spent
 
 
     def predict(self, data):
