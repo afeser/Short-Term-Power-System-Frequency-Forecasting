@@ -1,6 +1,11 @@
 from src.frequencyForecast import FrequencyForecaster
 from tensorflow.keras.optimizers import Adam
 import numpy as np
+from os.path import join
+import time
+import pdb
+import pandas as pd
+import pickle
 
 def persistenceValues():
     '''
@@ -1286,26 +1291,293 @@ def test33():
     0.0003 learning rate
     lb=3
     '''
-    ff = FrequencyForecaster('output/LoadTest/test31GRUContinuous_IO14_TSD_48Neuron1LayerLearningRate0003Lookback3', forecastModel='GRU')
-    ff.enableDayofWeek = True
-    ff.enableHourofDay = True
-    ff.enableTimeFeaturesForecastHorizon = True
-    ff.enableTimeFeaturesLookback = False
-    ff.enableLoadData = True
-    ff.enableSelectiveLoadFeatures = True
-    ff.dataDirectory = 'data'
-    ff.lnumber = 1
-    ff.nnum    = 48
-    ff.lb      = 3
-    ff.optimizer = Adam(learning_rate=0.0003)
+    def inner_test(folder, foreMod):
+        ff = FrequencyForecaster(folder, forecastModel=foreMod)
+        ff.enableDayofWeek = True
+        ff.enableHourofDay = True
+        ff.enableTimeFeaturesForecastHorizon = True
+        ff.enableTimeFeaturesLookback = False
+        ff.enableLoadData = True
+        ff.enableSelectiveLoadFeatures = True
+        ff.dataDirectory = 'data'
+        ff.lnumber = 1
+        ff.nnum    = 48
+        ff.lb      = 3
+        ff.optimizer = Adam(learning_rate=0.0003)
 
-    ff.readPrepareData()
-    ff.saveData()
-    ff.train(epoch=10)
-    ff.saveModel()
+        ff.readPrepareData()
+        ff.saveData()
+        ff.train(epoch=10)
+        ff.saveModel()
 
-    ff.plotError()
-    return ff
+        ff.plotError()
+        return ff
+
+    inner_test('output/test33/GRU', 'GRU')
+    inner_test('output/test33/LSTM', 'LSTM')
+    inner_test('output/test33/SimpleRNN', 'SimpleRNN')
 
 
-ff = test33()
+
+def test34():
+    '''
+    Best epoch test set errors. Configuration in test33.
+
+    This function calculates the statistics STD, Mean for GRU, LSTM, SimpleRNN
+    with many forecasted samples.
+
+    The result is simply,
+
+    std([forecasted values vector] - [real values vector])
+    mean([forecasted values vector] - [real values vector])
+
+
+    Output is saved to test34_all_errors.pickle. The output format is as follows:
+    dictionary[forecast_model][data_set][epoch] ...
+        ... ['test'][error_metric][std or mean] -> gives a float
+        ... ['validation'] -> epoch validation calculated error inside FrequencyForecaster (MSE only)
+        ... ['test_old_calculation'] -> epoch test calculated error inside FrequencyForecaster (MSE only)
+    '''
+    lookback = 3
+    def createModel(folder, foreMod, data_set):
+        ff = FrequencyForecaster(folder, forecastModel=foreMod)
+        ff.enableDayofWeek = True
+        ff.enableHourofDay = True
+        ff.enableTimeFeaturesForecastHorizon = True
+        ff.enableTimeFeaturesLookback = False
+        ff.enableLoadData = True
+        ff.enableSelectiveLoadFeatures = True
+        ff.dataDirectory = data_set
+        ff.lnumber = 1
+        ff.nnum    = 48
+        ff.lb      = lookback
+        ff.optimizer = Adam(learning_rate=0.0003)
+
+        ff.readPrepareData()
+        ff.saveData()
+
+        return ff
+
+
+
+    ### Global parameters...
+    forecast_model_names = ['GRU', 'LSTM', 'SimpleRNN']
+    data_set_names = ['data/data1', 'data/data2']
+
+    # Calculate errors, standard deviations etc.
+    dic_MSE = {
+        'GRU'      : {}, # for 2 different data sets
+        'LSTM'     : {},
+        'SimpleRNN': {},
+    }
+    dic_MAE = {
+        'GRU'      : {}, # for 2 different data sets
+        'LSTM'     : {},
+        'SimpleRNN': {},
+    }
+    dic_MAPE = {
+        'GRU'      : {}, # for 2 different data sets
+        'LSTM'     : {},
+        'SimpleRNN': {},
+    }
+
+    run_times = {}
+    all_data_calculated = {}
+    for forecast_model in (forecast_model_names + ['persistence', 'statistical_mean']):
+        run_times[forecast_model]           = {}
+        all_data_calculated[forecast_model] = {}
+        for data_set in data_set_names:
+            run_times[forecast_model][data_set]           = {'train_time': 0, 'predict_time': 0}
+
+            all_data_calculated[forecast_model][data_set] = [] # all errors inside
+
+    for forecast_model in forecast_model_names:
+        for data_set in data_set_names:
+            ff = createModel(join('output34/test34', forecast_model, data_set), forecast_model, data_set)
+
+            allSTD  = {
+                'MAE' : [],
+                'MAPE' : [],
+                'MSE' : []
+            }
+            allMEAN = {
+                'MAE' : [],
+                'MAPE' : [],
+                'MSE' : []
+            }
+            train_time   = []
+            predict_time = []
+            for epoch_counter in range(20):
+
+                # ff.train(epoch=1, trainMode='directTrain')
+                train_time.append(ff.train(epoch=1))
+
+
+
+                time_start = time.time()
+                predictedOutput = ff.predict(ff.XrealTest)
+                time_end = time.time()
+                predict_time.append(time_end - time_start)
+
+                realOutput = ff.scaler.inverse_transform(np.array(ff.YrealTest)).reshape(-1, 1)
+
+                difference = np.abs(predictedOutput - realOutput)
+                # MAE
+                allSTD['MAE'].append(np.std(difference))
+                allMEAN['MAE'].append(np.mean(difference))
+
+                # MSE
+                allSTD['MSE'].append(np.std(difference**2))
+                allMEAN['MSE'].append(np.mean(difference**2))
+
+                # MAPE
+                allSTD['MAPE'].append(np.std(difference / predictedOutput * 100))
+                allMEAN['MAPE'].append(np.mean(difference / predictedOutput * 100))
+
+                all_data_calculated[forecast_model][data_set].append({
+                    'test':{
+                        'MAE':{
+                            'std': allSTD['MAE'][-1],
+                            'mean': allMEAN['MAE'][-1]
+                        },
+                        'MSE':{
+                            'std': allSTD['MSE'][-1],
+                            'mean': allMEAN['MSE'][-1]
+                        },
+                        'MAPE':{
+                            'std': allSTD['MAPE'][-1],
+                            'mean': allMEAN['MAPE'][-1]
+                        }
+                    },
+                    'validation': ff.errors['testMSE'][epoch_counter],
+                    'test_old_calculation': ff.errors['realTestMSE'][epoch_counter]
+                })
+
+                # pdb.set_trace()
+
+            min_val_error_index = np.argmin(ff.errors['testMSE'])
+
+            dic_MAE [forecast_model][data_set] = {'std' : allSTD['MAE'] [min_val_error_index], 'mean' : allMEAN['MAE'] [min_val_error_index]}
+            dic_MSE [forecast_model][data_set] = {'std' : allSTD['MSE'] [min_val_error_index], 'mean' : allMEAN['MSE'] [min_val_error_index]}
+            dic_MAPE[forecast_model][data_set] = {'std' : allSTD['MAPE'][min_val_error_index], 'mean' : allMEAN['MAPE'][min_val_error_index]}
+
+            run_times[forecast_model][data_set]['train_time']   = sum(train_time  [:min_val_error_index+1])
+            run_times[forecast_model][data_set]['predict_time'] = predict_time[min_val_error_index]
+
+            del ff
+            # For correction...
+            print('Forecast model', forecast_model, 'data set', data_set, 'MSE', dic_MSE [forecast_model][data_set]['mean'], 'MAE', dic_MAE [forecast_model][data_set]['mean'],'MAPE', dic_MAPE [forecast_model][data_set]['mean'], 'train_time', sum(train_time  [:min_val_error_index+1]), 'predict_time', predict_time[min_val_error_index])
+
+
+    # Statistical mean and persistence results
+    for forecast_model in ['persistence', 'statistical_mean']:
+        for data_set in data_set_names:
+            test_data       = pd.read_csv(join(data_set, 'TestData.csv'))
+            test_data_dates = list(pd.to_datetime(test_data['dtm']))
+            test_data       = np.array(test_data['f'])
+
+            train_data       = pd.read_csv(join(data_set, 'TrainData.csv'))
+            train_data_dates = list(pd.to_datetime(train_data['dtm']))
+            train_data       = np.array(train_data['f'])
+
+            if forecast_model == 'persistence':
+                prediction  = test_data[lookback:-1]
+                groundTruth = test_data[lookback + 1:]
+
+            elif forecast_model == 'statistical_mean':
+                ### 1) First, let's calculate average
+                totalFrequency = np.zeros((7, 24))
+                totalPoint     = np.zeros((7, 24))
+
+
+                for index in range(len(train_data_dates)):
+                    day_of_week = train_data_dates[index].weekday()
+                    hour_of_day = train_data_dates[index].hour
+
+                    totalFrequency[day_of_week][hour_of_day] = totalFrequency[day_of_week][hour_of_day] + test_data[index]
+                    totalPoint[day_of_week][hour_of_day]     = totalPoint[day_of_week][hour_of_day] + 1
+
+                ## Find the average
+                averageFrequencies = totalFrequency / totalPoint
+
+                ### 2) Now, calculate the error
+                groundTruth = []
+                prediction  = []
+                for index in range(len(test_data)):
+                    day_of_week = train_data_dates[index].weekday()
+                    hour_of_day = train_data_dates[index].hour
+
+                    prediction.append(averageFrequencies[day_of_week][hour_of_day])
+                    groundTruth.append(test_data[index])
+
+
+
+            difference = np.abs(np.array(prediction) - np.array(groundTruth))
+
+            # Initialize
+            dic_MAE[forecast_model] = {}
+            dic_MSE[forecast_model] = {}
+            dic_MAPE[forecast_model] = {}
+
+            # MAE
+            dic_MAE[forecast_model][data_set] = {'std': np.std(difference), 'mean': np.mean(difference)}
+
+            # MSE
+            dic_MSE[forecast_model][data_set] = {'std': np.std(difference**2), 'mean': np.mean(difference**2)}
+
+            # MAPE
+            dic_MAPE[forecast_model][data_set] = {'std': np.std(difference / prediction * 100), 'mean': np.mean(difference / prediction * 100)}
+
+            all_data_calculated[forecast_model][data_set] = {
+                'MAE':{
+                    'std': dic_MAE[forecast_model][data_set]['std'],
+                    'mead': dic_MAE[forecast_model][data_set]['mean']
+                },
+                'MSE':{
+                    'std': dic_MSE[forecast_model][data_set]['std'],
+                    'mead': dic_MSE[forecast_model][data_set]['mean']
+                },
+                'MAPE':{
+                    'std': dic_MAPE[forecast_model][data_set]['std'],
+                    'mead': dic_MAPE[forecast_model][data_set]['mean']
+                },
+            }
+
+
+
+
+    print('----------------------Results----------------------')
+    for forecast_model in (forecast_model_names + ['persistence', 'statistical_mean']):
+        print('Forecast model', forecast_model)
+        for data_set in data_set_names:
+            print('\tData set', data_set)
+
+            print('\t\tStandard Deviation')
+            print('\t\t\tMAE  : ', str(dic_MAE [forecast_model][data_set]['std']))
+            print('\t\t\tMSE  : ', str(dic_MSE [forecast_model][data_set]['std']))
+            print('\t\t\tMAPE : ', str(dic_MAPE[forecast_model][data_set]['std']))
+
+            print('\t\tMean')
+            print('\t\t\tMAE  : ', str(dic_MAE [forecast_model][data_set]['mean']))
+            print('\t\t\tMSE  : ', str(dic_MSE [forecast_model][data_set]['mean']))
+            print('\t\t\tMAPE : ', str(dic_MAPE[forecast_model][data_set]['mean']))
+
+
+            if not (forecast_model in ['persistence', 'statistical_mean']):
+                print('\t\tTimes')
+                print('\t\t\tTrain Time =', run_times[forecast_model][data_set]['train_time'])
+                print('\t\t\tPredict Time =', run_times[forecast_model][data_set]['predict_time'])
+
+            print()
+
+    explanation_comment = """
+    Output is saved to test34_all_errors.pickle. The output format is as follows:
+    dictionary[forecast_model][data_set][epoch] ...
+        ... ['test'][error_metric][std or mean] -> gives a float
+        ... ['validation'] -> epoch validation calculated error inside FrequencyForecaster (MSE only)
+        ... ['test_old_calculation'] -> epoch test calculated error inside FrequencyForecaster (MSE only)
+            """
+    pickle.dump([all_data_calculated, explanation_comment], open('test34_all_errors.pickle', 'wb'))
+
+
+ff = test34()
