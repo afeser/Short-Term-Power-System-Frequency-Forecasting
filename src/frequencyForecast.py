@@ -32,6 +32,7 @@ import threading
 import pathlib
 from tensorflow.keras.layers import Dropout
 from multiprocessing.pool import ThreadPool
+import enlighten
 os.environ["CUDA_VISIBLE_DEVICES"] = '-1' # str(random.randint(-1,1))
 config = tf.compat.v1.ConfigProto()
 config.gpu_options.allow_growth=True
@@ -388,7 +389,9 @@ class FrequencyForecaster:
             # Every input is an element
             customY = []
             # i -> each sample, index of the samples from 0 to (ds - lb - forecastHorizon + 1)
+            bar = enlighten.Counter(total=ds - lb - forecastHorizon + 1)
             for i in range(ds - lb - forecastHorizon + 1):
+                bar.update()
                 # -------------------- Samples
                 customXsamples=[]
 
@@ -886,4 +889,3 @@ class FrequencyForecaster:
 
         with open(self.directoryName + '/errors.pickle' , 'rb') as f:
             self.errors = pickle.load(f)
-
