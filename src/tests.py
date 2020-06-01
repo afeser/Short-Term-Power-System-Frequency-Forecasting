@@ -1494,7 +1494,7 @@ def test34():
                     day_of_week = train_data_dates[index].weekday()
                     hour_of_day = train_data_dates[index].hour
 
-                    totalFrequency[day_of_week][hour_of_day] = totalFrequency[day_of_week][hour_of_day] + test_data[index]
+                    totalFrequency[day_of_week][hour_of_day] = totalFrequency[day_of_week][hour_of_day] + train_data[index]
                     totalPoint[day_of_week][hour_of_day]     = totalPoint[day_of_week][hour_of_day] + 1
 
                 ## Find the average
