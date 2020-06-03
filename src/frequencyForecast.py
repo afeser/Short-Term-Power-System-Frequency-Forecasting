@@ -33,7 +33,8 @@ import pathlib
 from tensorflow.keras.layers import Dropout
 from multiprocessing.pool import ThreadPool
 import enlighten
-os.environ["CUDA_VISIBLE_DEVICES"] = '-1' # str(random.randint(-1,1))
+# os.environ["CUDA_VISIBLE_DEVICES"] = '-1'
+os.environ["CUDA_VISIBLE_DEVICES"] = str(random.randint(-1,1))
 config = tf.compat.v1.ConfigProto()
 config.gpu_options.allow_growth=True
 sess = tf.compat.v1.Session(config=config)

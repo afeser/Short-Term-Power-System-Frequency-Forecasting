@@ -9,8 +9,8 @@ import sys
 lookback = 3
 
 # 2017 data...
-train2017 = pd.read_csv('data2/TrainData.csv')
-test2017  = pd.read_csv('data2/TestData.csv')
+train2017 = pd.read_csv('data/data1/TrainData.csv')
+test2017  = pd.read_csv('data/data1/TestData.csv')
 trainData1      = np.array(train2017['f'])
 trainData1Dates = list(pd.to_datetime(train2017['dtm']))
 # validationData1 = np.array(pd.read_csv('data2/ValidationData.csv')['f'])
@@ -18,7 +18,7 @@ testData1       = np.array(test2017['f'])
 testData1Dates  = list(pd.to_datetime(test2017['dtm']))
 
 # 2018 (only test data)
-test2018 = pd.read_csv('data4/TestData.csv')
+test2018 = pd.read_csv('data/data2/TestData.csv')
 testData2      = np.array(test2018['f'])
 testData2Dates = list(pd.to_datetime(test2018['dtm']))
 
