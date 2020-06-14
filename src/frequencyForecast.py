@@ -14,6 +14,7 @@ import numpy
 import time
 from sklearn.preprocessing import MinMaxScaler
 import os
+from os.path import join
 import pandas as pd
 import pickle
 import tensorflow.keras as keras
@@ -33,11 +34,11 @@ import pathlib
 from tensorflow.keras.layers import Dropout
 from multiprocessing.pool import ThreadPool
 import enlighten
-# os.environ["CUDA_VISIBLE_DEVICES"] = '-1'
-os.environ["CUDA_VISIBLE_DEVICES"] = str(random.randint(-1,1))
-config = tf.compat.v1.ConfigProto()
-config.gpu_options.allow_growth=True
-sess = tf.compat.v1.Session(config=config)
+os.environ["CUDA_VISIBLE_DEVICES"] = '-1'
+# os.environ["CUDA_VISIBLE_DEVICES"] = str(random.randint(-1,1))
+# config = tf.compat.v1.ConfigProto()
+# config.gpu_options.allow_growth=True
+# sess = tf.compat.v1.Session(config=config)
 
 
 
@@ -173,11 +174,16 @@ class FrequencyForecaster:
 
         print('Done!')
 
-    def readPrepareData(self):
+    def readPrepareData(self, input_mask=None):
         '''
         Read and prepare data, read directly from csv file and preprocess it.
         MinMaxScaler, input dimensions, feature addition etc. all done here.
         This method eventually sets the self parameters for further reference
+
+        Arguments:
+            See prepareData inner function for input_mask argument.
+
+
         '''
         ## Read data...
         def readData(scaler):
@@ -257,7 +263,7 @@ class FrequencyForecaster:
 
             return trainOutputDat, trainExtraData, train_date_time,  testOutputDat, testExtraData, test_date_time,  realTestOutputDat, realTestExtraData, realTest_date_time
         ## Prepare data
-        def prepareData(Xa, extraData, date_time, dataType, scaler):
+        def prepareData(Xa, extraData, date_time, dataType, scaler, input_mask):
             '''
             Data Representation :
             [samples, timesteps, features]
@@ -272,6 +278,17 @@ class FrequencyForecaster:
 
             Overall(3D) :
             [ [ timestep_0, timestep_1, ..., timestep_n ], [ timestep_0, timestep_1, ..., timestep_n ] ... ]
+
+            Arguments :
+                input_mask : Input data can be masked. The available masks are:
+
+                    Gaussian :
+                        input_mask = {
+                            'name': 'normal',
+                            'sigma': 0.03
+                        }
+                        This will apply Gaussian noise to input with sigma value
+                        of 0.03.
             '''
             self.num_months         = 0
             self.num_days           = 0
@@ -329,6 +346,18 @@ class FrequencyForecaster:
 
             binBoundaries = X[ds:]
             X             = X[:ds]
+            Y             = X.copy() # what if there will be noise in input but not in labels?
+
+            # Masks if any used...
+            if not (input_mask is None):
+                if input_mask['name'] == 'normal':
+                    sigma = input_mask['sigma']
+
+                    noise = numpy.random.normal(scale=sigma, size=(len(X),))
+
+                    X = X + noise
+
+
 
             enableMonthofYear  = self.enableMonthofYear
             enableDayofWeek    = self.enableDayofWeek
@@ -457,7 +486,7 @@ class FrequencyForecaster:
                 customX.append(customXsamples)
 
                 # We may want to use one hot encoding at the end
-                customY.append(X[i + lb : i + lb + forecastHorizon])
+                customY.append(Y[i + lb : i + lb + forecastHorizon])
 
             customY        = numpy.array(customY)
             if self.enableClassification:
@@ -477,9 +506,9 @@ class FrequencyForecaster:
         trainData, trainExtraLoadData, train_date_time, testData, testExtraLoadData, test_date_time, realTestData, realTestExtraLoadData, realTest_date_time = readData(scaler)
 
         print('Preprocessing data...')
-        Xtrain, Ytrain = prepareData(trainData, trainExtraLoadData, train_date_time, 'train', scaler)
-        Xtest,  Ytest  = prepareData(testData , testExtraLoadData, test_date_time, 'test', scaler)
-        XrealTest,  YrealTest  = prepareData(realTestData , realTestExtraLoadData, realTest_date_time, 'realTest', scaler)
+        Xtrain, Ytrain = prepareData(trainData, trainExtraLoadData, train_date_time, 'train', scaler, input_mask)
+        Xtest,  Ytest  = prepareData(testData , testExtraLoadData, test_date_time, 'test', scaler, input_mask)
+        XrealTest,  YrealTest  = prepareData(realTestData , realTestExtraLoadData, realTest_date_time, 'realTest', scaler, input_mask)
 
         if self.enableClassification:
             # Variables for plotting
@@ -520,15 +549,26 @@ class FrequencyForecaster:
                 pickle.dump([self.realTestData, self.realTestExtraLoadData, self.realTest_date_time, self.XrealTest, self.YrealTest, self.ds_realTest, self.ds_train, self.ds_test, featureListLen, self.YtrainPlot, self.YtestPlot, self.scaler, self.trainData, self.trainExtraLoadData, self.train_date_time, self.testData, self.testExtraLoadData, self.test_date_time, self.Xtrain, self.Ytrain, self.Xtest, self.Ytest, self.num_months, self.num_days, self.num_hours, self.num_minutes, self.num_extra_features] , f)
     def loadData(self, load_dir=None):
         '''
-        Load the preprocessed data from output directory
+        Load the preprocessed data from output directory.
+
+        Return:
+            return True if data loaded succesfully
+            return False if data not existing
+
         '''
         if load_dir is None:
             load_dir = self.directoryName
 
-        with open(load_dir + '/preprocessedData.pickle', 'rb') as f:
-            self.realTestData, self.realTestExtraLoadData, self.realTest_date_time, self.XrealTest, self.YrealTest, self.ds_realTest, self.ds_train, self.ds_test, featureListLen, self.YtrainPlot, self.YtestPlot, self.scaler, self.trainData, self.trainExtraLoadData, self.train_date_time, self.testData, self.testExtraLoadData, self.test_date_time, self.Xtrain, self.Ytrain, self.Xtest, self.Ytest, self.num_months, self.num_days, self.num_hours, self.num_minutes, self.num_extra_features = pickle.load(f)
+        load_file_name = join(load_dir, 'preprocessedData.pickle')
+        if os.path.exists(load_file_name):
+            with open(load_file_name, 'rb') as f:
+                self.realTestData, self.realTestExtraLoadData, self.realTest_date_time, self.XrealTest, self.YrealTest, self.ds_realTest, self.ds_train, self.ds_test, featureListLen, self.YtrainPlot, self.YtestPlot, self.scaler, self.trainData, self.trainExtraLoadData, self.train_date_time, self.testData, self.testExtraLoadData, self.test_date_time, self.Xtrain, self.Ytrain, self.Xtest, self.Ytest, self.num_months, self.num_days, self.num_hours, self.num_minutes, self.num_extra_features = pickle.load(f)
 
-        self.num_extra_features, self.enableTimeFeaturesLookback, self.forecastHorizon, self.enableTimeFeaturesForecastHorizon, self.num_months, self.num_days, self.num_hours, self.num_minutes = featureListLen
+            self.num_extra_features, self.enableTimeFeaturesLookback, self.forecastHorizon, self.enableTimeFeaturesForecastHorizon, self.num_months, self.num_days, self.num_hours, self.num_minutes = featureListLen
+
+            return True
+        else:
+            return False
 
     def _buildModel(self):
         # Build model
