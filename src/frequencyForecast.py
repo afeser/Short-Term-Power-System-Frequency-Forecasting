@@ -35,6 +35,7 @@ from tensorflow.keras.layers import Dropout
 from multiprocessing.pool import ThreadPool
 import enlighten
 os.environ["CUDA_VISIBLE_DEVICES"] = '-1'
+import pdb
 # os.environ["CUDA_VISIBLE_DEVICES"] = str(random.randint(-1,1))
 # config = tf.compat.v1.ConfigProto()
 # config.gpu_options.allow_growth=True
@@ -339,23 +340,32 @@ class FrequencyForecaster:
                 binBoundaries = numpy.array([49.836000000000006, 49.888999999999996, 49.94, 50.06100000000001, 50.121, 50.183]) # Gaussian boundaries specific to data
 
 
-            # Concat the bins so that the transform can know the output bin boundaries for the MinMaxScaler transformed version
-            Xa = Xa[:ds]
-            Xa = numpy.concatenate((Xa, binBoundaries))
-            X = scaler.transform(Xa.reshape(Xa.shape[0],1)).reshape(Xa.shape[0])
 
-            binBoundaries = X[ds:]
-            X             = X[:ds]
-            Y             = X.copy() # what if there will be noise in input but not in labels?
+
+            Xa = Xa[:ds]
+            Ya = numpy.copy(Xa)
 
             # Masks if any used...
             if not (input_mask is None):
                 if input_mask['name'] == 'normal':
                     sigma = input_mask['sigma']
 
-                    noise = numpy.random.normal(scale=sigma, size=(len(X),))
+                    noise = numpy.random.normal(scale=sigma, size=(len(Xa),))
 
-                    X = X + noise
+                    # pdb.set_trace()
+
+                    Xa = Xa + noise
+
+            # Concat the bins so that the transform can know the output bin boundaries for the MinMaxScaler transformed version
+            Xa = numpy.concatenate((Xa, binBoundaries))
+            Ya = numpy.concatenate((Ya, binBoundaries)) # only for readibility...
+            X = scaler.transform(Xa.reshape(Xa.shape[0],1)).reshape(Xa.shape[0])
+            Y = scaler.transform(Ya.reshape(Ya.shape[0],1)).reshape(Ya.shape[0])
+
+            binBoundaries = X[ds:]
+            X             = X[:ds]
+            Y             = Y[:ds] # what if there will be noise in input but not in labels?
+
 
 
 
