@@ -82,7 +82,7 @@ def test34():
         ... ['test_old_calculation'] -> epoch test calculated error inside FrequencyForecaster (MSE only)
     '''
     lookback  = 3
-    max_epoch = 20
+    max_epoch = 1
     def createModel(folder, foreMod, data_set):
         ff = FrequencyForecaster(folder, forecastModel=foreMod)
         ff.enableDayofWeek = True
@@ -98,9 +98,9 @@ def test34():
         ff.optimizer = Adam(learning_rate=0.0003)
 
         # Change to read preapare save if there is no load data present...
-        # ff.readPrepareData()
-        # ff.saveData()
-        ff.loadData()
+        ff.readPrepareData()
+        ff.saveData()
+        # ff.loadData()
 
         return ff
 
@@ -242,8 +242,8 @@ def test34():
             train_data       = np.array(train_data['f'])
 
             if forecast_model == 'persistence':
-                prediction  = test_data[lookback:-1]
-                groundTruth = test_data[lookback + 1:]
+                prediction  = test_data[lookback-1:-1]
+                groundTruth = test_data[lookback:]
 
             elif forecast_model == 'statistical_mean':
                 ### 1) First, let's calculate average
@@ -340,9 +340,7 @@ def test34():
             print()
 
 def test35_async_model_create(argss):
-    forecast_model, data_set, test_case_number = argss
-
-    lookback  = 3
+    forecast_model, data_set, test_case_number, lookback, sigma = argss
 
     def createModel(folder, foreMod, data_set, test_case_number):
         ff = FrequencyForecaster(folder, forecastModel=foreMod)
@@ -362,60 +360,58 @@ def test35_async_model_create(argss):
         if not ff.loadData():
             if test_case_number == 1:
                 ff.readPrepareData()
-                backup_train_data = ff.trainData
-                backup_train_X    = ff.Xtrain
-                backup_train_Y    = ff.Ytrain
+                backup_train_X     = np.copy(ff.Xtrain)
+                backup_train_Y     = np.copy(ff.Ytrain)
 
-                backup_val_data = ff.testData
-                backup_val_X    = ff.Xtest
-                backup_val_Y    = ff.Ytest
+                backup_val_X    = np.copy(ff.Xtest)
+                backup_val_Y    = np.copy(ff.Ytest)
 
-                ff.readPrepareData(input_mask={'name': 'normal', 'sigma': 0.005/3})
-                ff.trainData = np.concatenate((backup_train_data, ff.trainData))
+                ff.readPrepareData(input_mask={'name': 'normal', 'sigma': sigma})
                 ff.Xtrain    = np.concatenate((backup_train_X, ff.Xtrain))
                 ff.Ytrain    = np.concatenate((backup_train_Y, ff.Ytrain))
 
-                ff.testData = backup_val_data
                 ff.Xtest    = backup_val_X
                 ff.Ytest    = backup_val_Y
 
                 ff.saveData()
 
             elif test_case_number == 2:
-                ff.readPrepareData(input_mask={'name': 'normal', 'sigma': 0.005/3})
+                ff.readPrepareData(input_mask={'name': 'normal', 'sigma': sigma})
 
                 ff.saveData()
 
-            else:
+            elif test_case_number == 3:
                 ff.readPrepareData()
-                backup_train_data = ff.trainData
-                backup_train_X    = ff.Xtrain
-                backup_train_Y    = ff.Ytrain
+                backup_train_X    = np.copy(ff.Xtrain)
+                backup_train_Y    = np.copy(ff.Ytrain)
 
-                backup_val_data = ff.testData
-                backup_val_X    = ff.Xtest
-                backup_val_Y    = ff.Ytest
+                backup_val_X    = np.copy(ff.Xtest)
+                backup_val_Y    = np.copy(ff.Ytest)
 
-                ff.readPrepareData(input_mask={'name': 'normal', 'sigma': 0.005/3})
-                ff.trainData = backup_train_data
+                ff.readPrepareData(input_mask={'name': 'normal', 'sigma': sigma})
                 ff.Xtrain    = backup_train_X
                 ff.Ytrain    = backup_train_Y
 
-                ff.testData = backup_val_data
                 ff.Xtest    = backup_val_X
                 ff.Ytest    = backup_val_Y
+
+                ff.saveData()
+                # pdb.set_trace()
+
+            else:
+                ff.readPrepareData()
 
                 ff.saveData()
 
         return ff
 
 
-    ff = createModel(join('output/test35', forecast_model, data_set, str(test_case_number)), forecast_model, data_set, test_case_number)
+    ff = createModel(join('output/test35', 'test_case' + str(test_case_number), forecast_model, data_set), forecast_model, data_set, test_case_number)
 
     return ff
 
 def test35_async_calls(argss):
-    forecast_model, data_set, test_case_number, ff, max_epoch = argss
+    forecast_model, data_set, test_case_number, ff, max_epoch, lookback = argss
 
     allSTD  = {
         'MAE' : [],
@@ -483,11 +479,9 @@ def test35_async_calls(argss):
     min_val_error_index = np.argmin(ff.errors['testMSE'])
 
 
-    del ff
 
 
-
-    return {
+    final_dic = [{
         'forecast_model': forecast_model,
         'data_set': data_set,
         'all_data_calculated': all_data_calculated,
@@ -497,7 +491,22 @@ def test35_async_calls(argss):
         'dic_MAPE': {'std' : allSTD['MAPE'][min_val_error_index], 'mean' : allMEAN['MAPE'][min_val_error_index]},
         'run_times_train': sum(train_time  [:min_val_error_index+1]),
         'run_times_predict': predict_time[min_val_error_index]
+    },
+    {
+        'realTestDataX': ff.scaler.inverse_transform(np.array([sample[lookback-1][0] for sample in ff.XrealTest]).reshape(ff.XrealTest.shape[0], 1)).reshape(-1), # only for persistence -> date is not important!
+        'realTestDataY': ff.scaler.inverse_transform(np.array([sample[0] for sample in ff.YrealTest]).reshape(ff.YrealTest.shape[0], 1)).reshape(-1),
+
+        'realTestY_date_time': ff.realTest_date_time[lookback:],
+        'trainX_date_time': ff.train_date_time[:-lookback],
+        'trainDataX': ff.scaler.inverse_transform(np.array([sample[0][0] for sample in ff.Xtrain]).reshape(ff.Xtrain.shape[0], 1)).reshape(-1),
     }
+    ]
+
+    del ff
+    # pdb.set_trace()
+
+    return final_dic
+
 def test35():
     '''
     Best epoch test set errors. Configuration in test33. Gaussian noise trials
@@ -533,11 +542,12 @@ def test35():
     pickle object.
     '''
     ### Global parameters...
-    max_epoch = 1
+    max_epoch = 20
+    lookback  = 3
     forecast_model_names = ['GRU', 'LSTM', 'SimpleRNN']
     data_set_names = ['data/data1', 'data/data2']
-    all_test_numbers = [1,2,3]
-
+    all_test_numbers = [1,2,3,4]
+    sigma = 0.005 / 3
 
     run_times           = {}
     all_data_calculated = {}
@@ -562,38 +572,41 @@ def test35():
 
 
     # test35_async_calls('LSTM', 'data/data1', 1)
-    p = Pool(len(forecast_model_names)*len(data_set_names))
+    p = Pool(len(forecast_model_names)*len(data_set_names)*len(all_test_numbers))
 
-    input_argss = [(model_data[1], model_data[2], model_data[0]) for model_data in itertools.product([1,2,3], forecast_model_names, data_set_names)]
+    input_argss = [(model_data[1], model_data[2], model_data[0], lookback, sigma) for model_data in itertools.product(all_test_numbers, forecast_model_names, data_set_names)]
     all_models = p.map(test35_async_model_create, input_argss)
 
-    input_argss = [(model_data[1], model_data[2], model_data[0], all_models[counter], max_epoch) for counter, model_data in enumerate(itertools.product(all_test_numbers, forecast_model_names, data_set_names))]
-    all_included = p.map(test35_async_calls, input_argss)
+    input_argss = [(model_data[1], model_data[2], model_data[0], all_models[counter], max_epoch, lookback) for counter, model_data in enumerate(itertools.product(all_test_numbers, forecast_model_names, data_set_names))]
+    all_returns = p.map(test35_async_calls, input_argss)
 
-    pdb.set_trace()
+    all_included = [all_returns[counter][0] for counter in range(len(forecast_model_names)*len(data_set_names)*len(all_test_numbers))]
+    model_data   = [all_returns[counter][1] for counter in range(len(forecast_model_names)*len(data_set_names)*len(all_test_numbers))]
+
 
     list_counter = 0
     for test_number in all_test_numbers:
-        for forecast_model in forecast_model_names + ['persistence', 'statistical_mean']:
-            for data_set in data_set_names:
+        for data_set in data_set_names:
+            for forecast_model in forecast_model_names + ['persistence', 'statistical_mean']:
                 if forecast_model in ['persistence', 'statistical_mean']:
-                    test_data       = all_models[list_counter].realTestData
-                    test_data_dates = all_models[list_counter].realTest_date_time
-
-                    train_data       = all_models[list_counter].trainData
-                    train_data_dates = all_models[list_counter].train_date_time
 
                     if forecast_model == 'persistence':
-                        prediction  = test_data[lookback:-1]
-                        groundTruth = test_data[lookback + 1:]
+                        prediction  = model_data[list_counter-1]['realTestDataX']
+                        groundTruth = model_data[list_counter-1]['realTestDataY']
 
                     elif forecast_model == 'statistical_mean':
+                        train_data       = model_data[list_counter-1]['trainDataX']
+                        train_data_dates = model_data[list_counter-1]['trainX_date_time']
+
+                        test_data       = model_data[list_counter-1]['realTestDataY']
+                        test_data_dates = model_data[list_counter-1]['realTestY_date_time']
+
                         ### 1) First, let's calculate average
                         totalFrequency = np.zeros((7, 24))
                         totalPoint     = np.zeros((7, 24))
 
 
-                        for index in range(len(train_data_dates)):
+                        for index in range(len(train_data_dates)): # can neglect double train set case...
                             day_of_week = train_data_dates[index].weekday()
                             hour_of_day = train_data_dates[index].hour
 
@@ -630,16 +643,16 @@ def test35():
 
                     all_data_calculated[test_number][forecast_model][data_set] = [{
                         'MAE':{
-                            'std': dic_MAE[all_data_calculated, explanation_comment][forecast_model][data_set]['std'],
-                            'mead': dic_MAE[all_data_calculated, explanation_comment][forecast_model][data_set]['mean']
+                            'std': dic_MAE[test_number][forecast_model][data_set]['std'],
+                            'mead': dic_MAE[test_number][forecast_model][data_set]['mean']
                         },
                         'MSE':{
-                            'std': dic_MSE[all_data_calculated, explanation_comment][forecast_model][data_set]['std'],
-                            'mead': dic_MSE[all_data_calculated, explanation_comment][forecast_model][data_set]['mean']
+                            'std': dic_MSE[test_number][forecast_model][data_set]['std'],
+                            'mead': dic_MSE[test_number][forecast_model][data_set]['mean']
                         },
                         'MAPE':{
-                            'std': dic_MAPE[all_data_calculated, explanation_comment][forecast_model][data_set]['std'],
-                            'mead': dic_MAPE[all_data_calculated, explanation_comment][forecast_model][data_set]['mean']
+                            'std': dic_MAPE[test_number][forecast_model][data_set]['std'],
+                            'mead': dic_MAPE[test_number][forecast_model][data_set]['mean']
                         },
                         'validation': -1,
                         'test_old_calculation': -1,
@@ -705,10 +718,17 @@ def test35():
         ... ['test_old_calculation'] -> epoch test calculated error inside FrequencyForecaster (MSE only)
         ... ['min_val_error_index'] -> epoch that minimum error has been seen
             """
-
+    # pdb.set_trace()
 
     pickle.dump([all_data_calculated, explanation_comment], open('test35_all_errors.pickle', 'wb'))
 
 
-
-ff = test35()
+# ff = test34()
+# ff = test35_async_model_create(('LSTM', 'data/data1', 3, 3, 0.005/3))
+# res = test35_async_calls(('LSTM', 'data/data1', 1, ff, 1, 3))
+# pdb.set_trace()
+if __name__ == '__main__':
+    # ff = test34()
+    multiprocessing.set_start_method('spawn', force=True)
+    ff = test35()
+    pass
