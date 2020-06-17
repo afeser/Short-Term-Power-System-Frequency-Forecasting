@@ -289,15 +289,15 @@ def test34():
             all_data_calculated[forecast_model][data_set] = {
                 'MAE':{
                     'std': dic_MAE[forecast_model][data_set]['std'],
-                    'mead': dic_MAE[forecast_model][data_set]['mean']
+                    'mean': dic_MAE[forecast_model][data_set]['mean']
                 },
                 'MSE':{
                     'std': dic_MSE[forecast_model][data_set]['std'],
-                    'mead': dic_MSE[forecast_model][data_set]['mean']
+                    'mean': dic_MSE[forecast_model][data_set]['mean']
                 },
                 'MAPE':{
                     'std': dic_MAPE[forecast_model][data_set]['std'],
-                    'mead': dic_MAPE[forecast_model][data_set]['mean']
+                    'mean': dic_MAPE[forecast_model][data_set]['mean']
                 },
             }
 
@@ -642,17 +642,19 @@ def test35():
                     dic_MAPE[test_number][forecast_model][data_set] = {'std': np.std(difference / groundTruth * 100), 'mean': np.mean(difference / groundTruth * 100)}
 
                     all_data_calculated[test_number][forecast_model][data_set] = [{
-                        'MAE':{
-                            'std': dic_MAE[test_number][forecast_model][data_set]['std'],
-                            'mead': dic_MAE[test_number][forecast_model][data_set]['mean']
-                        },
-                        'MSE':{
-                            'std': dic_MSE[test_number][forecast_model][data_set]['std'],
-                            'mead': dic_MSE[test_number][forecast_model][data_set]['mean']
-                        },
-                        'MAPE':{
-                            'std': dic_MAPE[test_number][forecast_model][data_set]['std'],
-                            'mead': dic_MAPE[test_number][forecast_model][data_set]['mean']
+                        'test':{
+                            'MAE':{
+                                'std': dic_MAE[test_number][forecast_model][data_set]['std'],
+                                'mean': dic_MAE[test_number][forecast_model][data_set]['mean']
+                            },
+                            'MSE':{
+                                'std': dic_MSE[test_number][forecast_model][data_set]['std'],
+                                'mean': dic_MSE[test_number][forecast_model][data_set]['mean']
+                            },
+                            'MAPE':{
+                                'std': dic_MAPE[test_number][forecast_model][data_set]['std'],
+                                'mean': dic_MAPE[test_number][forecast_model][data_set]['mean']
+                            }
                         },
                         'validation': -1,
                         'test_old_calculation': -1,
