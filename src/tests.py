@@ -731,12 +731,42 @@ def test35():
 
     pickle.dump([all_data_calculated, explanation_comment], open('test35_all_errors.pickle', 'wb'))
 
+def test35_print_table():
+    all_data_calculated, explanation_comment = pickle.load(open('test35_all_errors.pickle', 'rb'))
+
+    for test_number in all_data_calculated.keys():
+        print('----------------------------------- Test ', test_number, ' -----------------------------------')
+
+        for forecast_model in ['LSTM', 'GRU', 'SimpleRNN', 'persistence', 'statistical_mean']:
+            name_mapping = {
+                'LSTM': 'PM',
+                'GRU' : 'GRU',
+                'SimpleRNN': 'SRN',
+                'persistence': 'NPM',
+                'statistical_mean': 'SMM'
+            }
+            print('{\\textit{' + '{0:5s}'.format(name_mapping[forecast_model]) + '}}', end='')
+
+            for metric in ['MSE', 'MAE', 'MAPE']:
+                for data_set in all_data_calculated[test_number][forecast_model].keys():
+
+
+                    for std_or_mean in ['mean', 'std']:
+                        min_err_index = all_data_calculated[test_number][forecast_model][data_set][-1]['min_val_error_index']
+
+                        print(' & {0:11.8f}'.format(all_data_calculated[test_number][forecast_model][data_set][min_err_index]['test'][metric][std_or_mean]*100), end='')
+
+            print('  \\\\')
+        print()
+        print()
+
 # ff = test34()
 # ff = test35_async_model_create(('LSTM', 'data/data1', 3, 3, 0.005/3))
 # res = test35_async_calls(('LSTM', 'data/data1', 1, ff, 1, 3))
 # pdb.set_trace()
+test35_print_table()
 if __name__ == '__main__':
     # ff = test34()
-    multiprocessing.set_start_method('spawn', force=True)
-    ff = test35()
+    # multiprocessing.set_start_method('spawn', force=True)
+    # ff = test35()
     pass
