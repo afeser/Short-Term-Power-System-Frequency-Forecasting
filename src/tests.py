@@ -584,100 +584,107 @@ def test35():
     model_data   = [all_returns[counter][1] for counter in range(len(forecast_model_names)*len(data_set_names)*len(all_test_numbers))]
 
 
-    list_counter = 0
-    for test_number in all_test_numbers:
-        for data_set in data_set_names:
-            for forecast_model in forecast_model_names + ['persistence', 'statistical_mean']:
-                if forecast_model in ['persistence', 'statistical_mean']:
+    test_list_tags = list(itertools.product(all_test_numbers, forecast_model_names, data_set_names))
+    for list_counter in range(len(forecast_model_names)*len(data_set_names)*len(all_test_numbers)):
+        test_number = test_list_tags[list_counter][0]
+        forecast_model = test_list_tags[list_counter][1]
+        data_set = test_list_tags[list_counter][2]
 
-                    if forecast_model == 'persistence':
-                        prediction  = model_data[list_counter-1]['realTestDataX']
-                        groundTruth = model_data[list_counter-1]['realTestDataY']
-
-                    elif forecast_model == 'statistical_mean':
-                        train_data       = model_data[list_counter-1]['trainDataX']
-                        train_data_dates = model_data[list_counter-1]['trainX_date_time']
-
-                        test_data       = model_data[list_counter-1]['realTestDataY']
-                        test_data_dates = model_data[list_counter-1]['realTestY_date_time']
-
-                        ### 1) First, let's calculate average
-                        totalFrequency = np.zeros((7, 24))
-                        totalPoint     = np.zeros((7, 24))
+        elem = all_included[list_counter]
 
 
-                        for index in range(len(train_data_dates)): # can neglect double train set case...
-                            day_of_week = train_data_dates[index].weekday()
-                            hour_of_day = train_data_dates[index].hour
+        all_data_calculated[test_number][forecast_model][data_set] = elem['all_data_calculated']
 
-                            totalFrequency[day_of_week][hour_of_day] = totalFrequency[day_of_week][hour_of_day] + train_data[index]
-                            totalPoint[day_of_week][hour_of_day]     = totalPoint[day_of_week][hour_of_day] + 1
+        min_indeces[test_number][forecast_model][data_set] = elem['min_indeces']
 
-                        ## Find the average
-                        averageFrequencies = totalFrequency / totalPoint
+        dic_MAE[test_number][forecast_model][data_set]  = elem['dic_MAE']
+        dic_MSE[test_number][forecast_model][data_set]  = elem['dic_MSE']
+        dic_MAPE[test_number][forecast_model][data_set] = elem['dic_MAPE']
 
-                        ### 2) Now, calculate the error
-                        groundTruth = []
-                        prediction  = []
-                        for index in range(len(test_data)):
-                            day_of_week = test_data_dates[index].weekday()
-                            hour_of_day = test_data_dates[index].hour
-
-                            prediction.append(averageFrequencies[day_of_week][hour_of_day])
-                            groundTruth.append(test_data[index])
+        run_times[test_number][forecast_model][data_set] = {'train_time': elem['run_times_train'], 'predict_time': elem['run_times_predict']}
 
 
+    for list_counter in range(len(forecast_model_names)*len(data_set_names)*len(all_test_numbers)):
+        test_number = test_list_tags[list_counter][0]
+        forecast_model1 = test_list_tags[list_counter][1]
+        data_set = test_list_tags[list_counter][2]
 
-                    difference = np.abs(np.array(prediction) - np.array(groundTruth))
+        if not (forecast_model1 == forecast_model_names[0]):
+            # Only the first one should be computed...
+            continue
 
+        for forecast_model in ['persistence', 'statistical_mean']:
 
+            if forecast_model == 'persistence':
+                prediction  = model_data[list_counter]['realTestDataX']
+                groundTruth = model_data[list_counter]['realTestDataY']
 
-                    # MAE
-                    dic_MAE[test_number][forecast_model][data_set] = {'std': np.std(difference), 'mean': np.mean(difference)}
+            elif forecast_model == 'statistical_mean':
+                train_data       = model_data[list_counter]['trainDataX']
+                train_data_dates = model_data[list_counter]['trainX_date_time']
 
-                    # MSE
-                    dic_MSE[test_number][forecast_model][data_set] = {'std': np.std(difference**2), 'mean': np.mean(difference**2)}
+                test_data       = model_data[list_counter]['realTestDataY']
+                test_data_dates = model_data[list_counter]['realTestY_date_time']
 
-                    # MAPE
-                    dic_MAPE[test_number][forecast_model][data_set] = {'std': np.std(difference / groundTruth * 100), 'mean': np.mean(difference / groundTruth * 100)}
-
-                    all_data_calculated[test_number][forecast_model][data_set] = [{
-                        'test':{
-                            'MAE':{
-                                'std': dic_MAE[test_number][forecast_model][data_set]['std'],
-                                'mean': dic_MAE[test_number][forecast_model][data_set]['mean']
-                            },
-                            'MSE':{
-                                'std': dic_MSE[test_number][forecast_model][data_set]['std'],
-                                'mean': dic_MSE[test_number][forecast_model][data_set]['mean']
-                            },
-                            'MAPE':{
-                                'std': dic_MAPE[test_number][forecast_model][data_set]['std'],
-                                'mean': dic_MAPE[test_number][forecast_model][data_set]['mean']
-                            }
-                        },
-                        'validation': -1,
-                        'test_old_calculation': -1,
-                        'min_val_error_index' : 0
-                    }] * max_epoch
+                ### 1) First, let's calculate average
+                totalFrequency = np.zeros((7, 24))
+                totalPoint     = np.zeros((7, 24))
 
 
-                else:
-                    elem = all_included[list_counter]
-                    list_counter = list_counter + 1
+                for index in range(len(train_data_dates)): # can neglect double train set case...
+                    day_of_week = train_data_dates[index].weekday()
+                    hour_of_day = train_data_dates[index].hour
+
+                    totalFrequency[day_of_week][hour_of_day] = totalFrequency[day_of_week][hour_of_day] + train_data[index]
+                    totalPoint[day_of_week][hour_of_day]     = totalPoint[day_of_week][hour_of_day] + 1
+
+                ## Find the average
+                averageFrequencies = totalFrequency / totalPoint
+
+                ### 2) Now, calculate the error
+                groundTruth = []
+                prediction  = []
+                for index in range(len(test_data)):
+                    day_of_week = test_data_dates[index].weekday()
+                    hour_of_day = test_data_dates[index].hour
+
+                    prediction.append(averageFrequencies[day_of_week][hour_of_day])
+                    groundTruth.append(test_data[index])
 
 
-                    all_data_calculated[test_number][forecast_model][data_set] = elem['all_data_calculated']
 
-                    min_indeces[test_number][forecast_model][data_set] = elem['min_indeces']
-
-                    dic_MAE[test_number][forecast_model][data_set]  = elem['dic_MAE']
-                    dic_MSE[test_number][forecast_model][data_set]  = elem['dic_MSE']
-                    dic_MAPE[test_number][forecast_model][data_set] = elem['dic_MAPE']
-
-                    run_times[test_number][forecast_model][data_set] = {'train_time': elem['run_times_train'], 'predict_time': elem['run_times_predict']}
+            difference = np.abs(np.array(prediction) - np.array(groundTruth))
 
 
+
+            # MAE
+            dic_MAE[test_number][forecast_model][data_set] = {'std': np.std(difference), 'mean': np.mean(difference)}
+
+            # MSE
+            dic_MSE[test_number][forecast_model][data_set] = {'std': np.std(difference**2), 'mean': np.mean(difference**2)}
+
+            # MAPE
+            dic_MAPE[test_number][forecast_model][data_set] = {'std': np.std(difference / groundTruth * 100), 'mean': np.mean(difference / groundTruth * 100)}
+
+            all_data_calculated[test_number][forecast_model][data_set] = [{
+                'test':{
+                    'MAE':{
+                        'std': dic_MAE[test_number][forecast_model][data_set]['std'],
+                        'mean': dic_MAE[test_number][forecast_model][data_set]['mean']
+                    },
+                    'MSE':{
+                        'std': dic_MSE[test_number][forecast_model][data_set]['std'],
+                        'mean': dic_MSE[test_number][forecast_model][data_set]['mean']
+                    },
+                    'MAPE':{
+                        'std': dic_MAPE[test_number][forecast_model][data_set]['std'],
+                        'mean': dic_MAPE[test_number][forecast_model][data_set]['mean']
+                    }
+                },
+                'validation': -1,
+                'test_old_calculation': -1,
+                'min_val_error_index' : 0
+            }] * max_epoch
 
 
 
@@ -723,7 +730,6 @@ def test35():
     # pdb.set_trace()
 
     pickle.dump([all_data_calculated, explanation_comment], open('test35_all_errors.pickle', 'wb'))
-
 
 # ff = test34()
 # ff = test35_async_model_create(('LSTM', 'data/data1', 3, 3, 0.005/3))
